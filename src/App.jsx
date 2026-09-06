@@ -1,122 +1,200 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import React, { useState, useEffect } from 'react';
+import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
+import { Header } from './components/common/Header';
+import { Footer } from './components/common/Footer';
+import { BannerSlider } from './components/home/BannerSlider';
+import { CategoryGrid } from './components/home/CategoryGrid';
+import { FlashSale } from './components/home/FlashSale';
+import { FilterSidebar } from './components/home/FilterSidebar';
+import { ProductGrid } from './components/home/ProductGrid';
+import { ProductDetailModal } from './components/product/ProductDetailModal';
+import { CartView } from './components/cart/CartView';
+import { OrderManagement } from './components/order/OrderManagement';
+import { AuthModal } from './components/auth/AuthModal';
+import { ProfileDrawer } from './components/auth/ProfileDrawer';
+import { api } from './services/api';
 
-function App() {
-  const [count, setCount] = useState(0)
+const MainApp = () => {
+  const [currentView, setCurrentView] = useState('home'); // 'home' | 'cart' | 'orders'
+  const [categories, setCategories] = useState([]);
+  const [flashProducts, setFlashProducts] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [sortBy, setSortBy] = useState('popular');
+  const [filterParams, setFilterParams] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load Categories and Flash Sale items
+  useEffect(() => {
+    api.getCategories().then(res => {
+      if (res.success && res.categories) setCategories(res.categories);
+    }).catch(console.error);
+
+    api.getFlashSale().then(res => {
+      if (res.success && res.products) setFlashProducts(res.products);
+    }).catch(console.error);
+  }, []);
+
+  // Fetch product list or recommendations based on filters/category/search
+  useEffect(() => {
+    setLoading(true);
+    if (searchQuery) {
+      api.searchProducts(searchQuery).then(res => {
+        if (res.success && res.products) setProducts(res.products);
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    } else if (activeCategory === 'all' && !filterParams.min_price && !filterParams.rating) {
+      // Smart recommendation algorithm on default landing
+      api.getRecommendations().then(res => {
+        if (res.success && res.products) {
+          let list = [...res.products];
+          if (sortBy === 'price_asc') list.sort((a, b) => a.sale_price - b.sale_price);
+          else if (sortBy === 'price_desc') list.sort((a, b) => b.sale_price - a.sale_price);
+          else if (sortBy === 'best_seller') list.sort((a, b) => b.sold_quantity - a.sold_quantity);
+          else if (sortBy === 'newest') list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          setProducts(list);
+        }
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    } else {
+      const params = {
+        category_id: activeCategory !== 'all' ? activeCategory : undefined,
+        sort_by: sortBy,
+        ...filterParams
+      };
+      api.getProducts(params).then(res => {
+        if (res.success && res.products) setProducts(res.products);
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    }
+  }, [activeCategory, sortBy, filterParams, searchQuery]);
+
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    setCurrentView('home');
+  };
+
+  const handleCategorySelect = (catId) => {
+    setActiveCategory(catId);
+    setSearchQuery('');
+    setCurrentView('home');
+  };
+
+  const handleBannerClick = (category) => {
+    if (category) {
+      setActiveCategory(category);
+    }
+    setCurrentView('home');
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Chào mừng các bạn khóa 24ct đến với học phần CNPM-DAU</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <Header
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        onSearch={handleSearch}
+        activeCategory={activeCategory}
+        setActiveCategory={setActiveCategory}
+      />
 
-      <div className="ticks"></div>
+      {/* Main Body */}
+      <main style={{ flex: 1 }}>
+        {currentView === 'home' && (
+          <div className="grape-container">
+            {/* Banner Slider */}
+            {!searchQuery && <BannerSlider onBannerClick={handleBannerClick} />}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+            {/* Category Grid */}
+            {!searchQuery && (
+              <CategoryGrid
+                categories={categories}
+                activeCategory={activeCategory}
+                onSelectCategory={handleCategorySelect}
+              />
+            )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+            {/* Flash Sale Countdown Bar */}
+            {!searchQuery && activeCategory === 'all' && (
+              <FlashSale
+                flashProducts={flashProducts}
+                onSelectProduct={(id) => setSelectedProductId(id)}
+              />
+            )}
+
+            {/* Shop Layout: Sidebar Filter & Products Grid */}
+            <div className="grape-shop-layout">
+              <FilterSidebar
+                categories={categories}
+                activeCategory={activeCategory}
+                onSelectCategory={handleCategorySelect}
+                onFilterChange={(newFilters) => setFilterParams(newFilters)}
+              />
+
+              <ProductGrid
+                products={products}
+                sortBy={sortBy}
+                onSortChange={(sort) => setSortBy(sort)}
+                onSelectProduct={(id) => setSelectedProductId(id)}
+                title={
+                  searchQuery
+                    ? `KẾT QUẢ TÌM KIẾM: "${searchQuery}" (${products.length} sản phẩm)`
+                    : activeCategory !== 'all'
+                    ? `DANH MỤC: ${categories.find(c => c.id === activeCategory)?.name || 'Sản phẩm'} (${products.length})`
+                    : 'GỢI Ý HÔM NAY - ĐỀ XUẤT DÀNH CHO BẠN 🍇'
+                }
+              />
+            </div>
+          </div>
+        )}
+
+        {currentView === 'cart' && (
+          <CartView
+            onBackToHome={() => setCurrentView('home')}
+            onOrderSuccess={() => setCurrentView('orders')}
+          />
+        )}
+
+        {currentView === 'orders' && (
+          <OrderManagement
+            onBackToHome={() => setCurrentView('home')}
+          />
+        )}
+      </main>
+
+      {/* Modals & Drawers */}
+      {selectedProductId && (
+        <ProductDetailModal
+          productId={selectedProductId}
+          onClose={() => setSelectedProductId(null)}
+          onBuyNow={() => {
+            setSelectedProductId(null);
+            setCurrentView('cart');
+          }}
+        />
+      )}
+
+      <AuthModal />
+      <ProfileDrawer />
+
+      {/* Footer */}
+      <Footer />
+    </div>
+  );
+};
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <AuthProvider>
+        <CartProvider>
+          <MainApp />
+        </CartProvider>
+      </AuthProvider>
+    </ToastProvider>
+  );
 }
-
-export default App
